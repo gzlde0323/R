@@ -1,0 +1,853 @@
+---
+title: "CABG in TAAD"
+author: "Jaccir"
+format: docx
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Data wrangling
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r load packages}
+library(easypackages)
+pkgs <- c("ggrcs", "scales", "rcssci", "timereg", "cmprsk", "gtsummary", 
+          "tidyverse", "ggthemes", "rlang", "rio", "haven", "Hmisc", 
+          "reshape", "readxl", "tableone", "naniar", "survival", "broom", 
+          "survminer", "survival", "forestplot", "rms", "ggsci", "pryr")
+libraries(pkgs)
+```
+
+You can add options to executable code like this
+
+```{r import data}
+#| echo: false
+raw_data <- read_excel("table.xlsx", col_types = c("skip", 
+     "skip", "skip", "numeric", "text", "text", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", 
+     "skip",    #电话
+     "skip",    #电话2
+     "numeric", 
+     "skip",    #随访时间
+     "numeric", # 30天死亡
+     "text",    #出院死亡
+     "skip",    #死亡时间
+     "text",    #死因
+     "skip",    #中风日期
+     "text",    #终身透析
+     "text",    #出血日期
+     "text", 
+     "text",    #桥堵pci
+     "text", 
+     "text",    #未处理冠脉pci
+     "text",    #未处理冠脉cabg
+     "skip",    #末次CT
+     "skip", 
+     "numeric", #住院再干预
+     "text", 
+     "text", 
+     "text", 
+     "numeric", "numeric", "text", "text", 
+     "text", "numeric", "numeric", "numeric",    # diabetes_insulin
+     "skip", "numeric", "date", "date", "skip",  # surgeon
+     "numeric", "numeric", "numeric", "numeric", # david 
+     "numeric", "numeric", "text", "numeric",    # grafts
+    "numeric", "numeric", "text",                # branches_procedure
+     "numeric", "numeric", "numeric", "numeric", # weight 
+     "numeric", "numeric", "numeric", "numeric", # ai(0-3)
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "skip", 
+     "skip", "skip", "skip", "skip", "numeric", 
+     "text", "text", "text", "numeric", "numeric", 
+     "skip", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "numeric", "skip", "skip", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "text", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip"))
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r wrangling the data}
+#| echo: false
+raw_data <- raw_data %>% filter(hosp_stay > 0)   # 提取完整的行
+str(raw_data)
+names(raw_data)
+
+raw_data <- dplyr::rename(raw_data, ostial_l_involved    =             左冠受累)
+raw_data <- dplyr::rename(raw_data, ostial_r_involved    =             右冠受累)
+raw_data <- dplyr::rename(raw_data, cad                  =               冠心病)
+raw_data <- dplyr::rename(raw_data, ostial_repair        =             冠脉成形)
+raw_data <- dplyr::rename(raw_data, ostial_trans_cabg    =           成形转cabg)
+raw_data <- dplyr::rename(raw_data, ostial_return_cabg   =             返室cabg)
+raw_data <- dplyr::rename(raw_data, only_mech            = `ICU,需搭桥但只辅助`)
+raw_data <- dplyr::rename(raw_data, ostial_re_repair     =   `成形后冠脉口修补`)
+raw_data <- dplyr::rename(raw_data, ostial_repair_die    =    `需搭,无辅助即死`)
+
+raw_data <- dplyr::rename(raw_data, cabg_cad             =         `冠心病搭桥`)
+raw_data <- dplyr::rename(raw_data, cabg_ostial          =       `冠脉受累搭桥`)
+raw_data <- dplyr::rename(raw_data, cabg_return_cabg     =       `返室处理桥路`)
+raw_data <- dplyr::rename(raw_data, cabg_re_cabg_cad     =   `CAD未搭,术中补搭`)
+raw_data <- dplyr::rename(raw_data, surgical_mi          =         `冠脉相关MI`)
+
+# 随访变量暂时未改名
+
+raw_data <- dplyr::rename(raw_data, inhospital_death     =           `院内死亡`)
+raw_data <- dplyr::rename(raw_data, death_within_30days  =           `30天死亡`)
+# 本研究中30天死亡跟operative mortality等同
+raw_data <- dplyr::rename(raw_data, marfan               =   `遗传性主动脉疾病`)
+raw_data <- dplyr::rename(raw_data, oral_anticoagulant   =         `口服抗凝药`)
+raw_data <- dplyr::rename(raw_data, pericardial_effusion =    `中量(+)心包填塞`)
+raw_data <- dplyr::rename(raw_data, ar                   =            `ai(0-3)`)
+raw_data <- dplyr::rename(raw_data, re_cpb               =           `再次转流`)
+raw_data <- dplyr::rename(raw_data, rbc_use              =    `手术用红细胞(U)`)
+raw_data <- dplyr::rename(raw_data, plasma_use           =     `手术用血浆(ml)`)
+raw_data <- dplyr::rename(raw_data, plt_use              =       `手术用PLT(U)`)
+raw_data <- dplyr::rename(raw_data, autologous_fusion    =     `术中自体血回输`)
+raw_data <- dplyr::rename(raw_data, blood_loss           =     `术中失血量(ml)`)
+raw_data <- dplyr::rename(raw_data, pre_tni              =           `术前肌钙`)
+raw_data <- dplyr::rename(raw_data, post_hs_tni          =       `术后高敏肌钙`)
+raw_data <- dplyr::rename(raw_data, re_exploration       =       `二次开胸止血`)
+raw_data <- dplyr::rename(raw_data, tracheostomy         =       `术后气管切开`)
+
+```
+
+```{r study population}
+study_population <- raw_data %>% select(-c("成功随访", "出院死亡", "死因", "lifelong dialysis", "出血日期", "冠脉假性动脉瘤", "桥堵pci", "桥堵cabg", "未处理冠脉pci", "未处理冠脉cabg", "住院再干预", "根部再干预", "远端再干预", "分支再干预", "瓣膜再干预", "心内膜炎", "aortic_ulcer", "imh", "ad", "入院日期", "手术日期", "机余血(ml)", "转前尿", "术中尿量(ml)", "转后尿", "超滤量(ml)", "总输液量(ml)", "附录"))
+str(study_population)
+```
+
+```{r Make categorical variables factors}
+study_population <- 
+  study_population %>%
+    mutate(branches_procedure = if_else(branches_procedure == 0, 0, 1))
+study_population <- 
+  study_population %>%
+    mutate(re_cpb = if_else(re_cpb == 0, 0, 1))
+
+raw <- study_population
+
+# 提取operative mortality
+raw$operative_mortality <- raw$inhospital_death + raw$death_within_30days
+raw$operative_mortality <- ifelse(raw$operative_mortality == 0, 0 ,1)
+
+# 提取冠状动脉开口受累
+raw$ostial_l        <- parse_number(raw$ostial_l_involved)      # 左冠开口受累
+raw$ostial_r        <- parse_number(raw$ostial_r_involved)      # 右冠开口受累
+raw$ostial_involved <- raw$ostial_l + raw$ostial_r              # 冠脉开口受累
+raw$ostial_involved <- ifelse(raw$ostial_involved==2, 1, raw$ostial_involved)
+
+# 将冠状动脉Neri分型提取
+raw$ostial_l_involved <- as.factor(raw$ostial_l_involved)       # 左冠受累分型
+table(raw$ostial_l_involved)                                                      
+raw$ostial_r_involved <- as.factor(raw$ostial_r_involved)       # 右冠受累分型
+table(raw$ostial_r_involved) 
+
+raw$ostial_l_involved <- as.character(raw$ostial_l_involved)                            # 先将左冠字符串化型
+raw$left_neri <- ifelse(raw$ostial_l_involved=="1Coit","1B", raw$ostial_l_involved)      # 左冠受累Neri分---left_neri
+raw$ostial_l_involved <- as.factor(raw$ostial_l_involved)                               # 再将左冠因子
+table(raw$left_neri)   
+
+raw$ostial_r_involved <- as.character(raw$ostial_r_involved)                            # 先将右冠字符串化
+raw$right_neri <- ifelse(raw$ostial_r_involved=="1Coit","1C",raw$ostial_r_involved)      # 右冠受累Neri分型---right_neri
+raw$ostial_r_involved <- as.factor(raw$ostial_r_involved)                               # 再将右冠因子化
+table(raw$right_neri)
+
+names(raw)                                                       # list names of variables
+dput(names(raw))                                                 # abstract names of variables
+vars <- dput(names(raw))                                         # vector of variables name
+
+vars <- c("coronary_malperfusion", "ostial_l_involved", "ostial_r_involved", 
+"cad", "ostial_repair", "ostial_trans_cabg", "ostial_return_cabg", 
+"only_mech", "ostial_re_repair", "ostial_repair_die", "cabg", 
+"cabg_cad", "cabg_ostial", "cabg_return_cabg", "cabg_re_cabg_cad", 
+"surgical_mi", "inhospital_death", "stroke", "ecmo", "iabp", "death_within_30days",
+"marfan", "hypertension", "diabetes_insulin", "oral_anticoagulant", 
+"sinus_reconstruct", "avp", "avr", "david", "bentall", "sun", 
+"graft_of_cabg", "grafts", "rca", "lima", 
+"branches_procedure", "gender", "age", "height", "weight", 
+"bmi", "pericardial_effusion", "bav", "ar", "preLVEF", "re_cpb", 
+"opreative_time", "cpb_time", "clamp_time", "arrest_time", "rbc_use", 
+"plasma_use", "plt_use", "autologous_fusion", "blood_loss", "preSCr", 
+"preCCr", "post_first_scr", "post_48_scr", "peak_scr", "preBUN", 
+"post_first_bun", "post_48h_bun", "peak_bun", "preTBIL", "postTBIL", 
+"preALT", "postALT", "preAST", "postAST", "pre_tni", "post_hs_tni", 
+"preINR", "re_exploration", "crrt", "pneumonia", "sepsis", "tracheostomy", 
+"ventilation_time", "ICUstay", "hosp_stay", "mace", "cardiorenal_events", 
+"ostial_l", "ostial_r", "ostial_involved", "left_neri", "right_neri")
+
+varsToFactor <- c("coronary_malperfusion", "ostial_l_involved", 
+"ostial_r_involved", 
+"cad", "ostial_repair", "ostial_trans_cabg", "ostial_return_cabg", 
+"only_mech", "ostial_re_repair", "ostial_repair_die", "cabg", 
+"cabg_cad", "cabg_ostial", "cabg_return_cabg", "cabg_re_cabg_cad", 
+"surgical_mi", "inhospital_death", "stroke", "ecmo", "iabp", "death_within_30days",
+"marfan", "hypertension", "diabetes_insulin", "oral_anticoagulant", 
+"sinus_reconstruct", "avp", "avr", "david", "bentall", "sun", 
+"grafts", "rca", "lima", "branches_procedure", "gender", "pericardial_effusion", 
+"bav", "ar", "re_cpb", "re_exploration", "crrt", "pneumonia", "sepsis", 
+"tracheostomy", "mace", "cardiorenal_events", 
+"ostial_l", "ostial_r", "ostial_involved", "left_neri", "right_neri")
+raw[varsToFactor] <- lapply(raw[varsToFactor], factor)
+str(raw)
+```
+
+```{r impute missing data}
+## 1.找出含缺失值的列
+raw_imputed <- raw
+seq_along(raw_imputed)
+raw_na <- as.vector(seq_along(raw_imputed), "list")
+for (i in seq_along(raw_imputed)) {
+  raw_na[[i]] <- any(is.na(raw_imputed[,i]))
+}     
+raw_na
+
+## 2.找出data中含有缺失值的变量的名称
+which(raw_na == TRUE)
+vars[which(raw_na == TRUE)]
+
+## 3. 填补缺失值
+# 男性计算肌酐清除率
+raw_imputed$preCCr <- ifelse(is.na(raw_imputed$preCCr) & raw_imputed$gender ==1,
+  (140-raw_imputed$age)*raw_imputed$weight/0.818/raw_imputed$preSCr, raw_imputed$preCCr)
+# 女性计算肌酐清除率
+raw_imputed$preCCr <- ifelse(is.na(raw_imputed$preCCr) & raw_imputed$gender ==0,       
+  (140-raw_imputed$age)*raw_imputed$weight/0.818/raw_imputed$preSCr*0.85, raw_imputed$preCCr)
+
+library(mice)                                                                  
+# 数据缺失可视化
+seq_along(raw_imputed)
+raw_na <- as.vector(seq_along(raw_imputed), "list")
+for (i in seq_along(raw_imputed)) {
+  raw_na[[i]] <- any(is.na(raw_imputed[,i]))
+}     
+raw_na
+
+## 2.找出data中含有缺失值的变量的名称
+which(raw_na == TRUE)
+vars[which(raw_na == TRUE)]
+dput(vars[which(raw_na == TRUE)])
+
+imputed_data <- raw_imputed %>%                                                    
+  select(dput(vars[which(raw_na == TRUE)]))
+md.pattern(imputed_data)
+
+imp_data <- mice(raw_imputed, #数据集
+                 method = "rf", #采用随机森林插补
+                 m=5, # 5次插补
+                 printFlag = FALSE #不显示历史记录
+                 )
+imp_data
+complete_data <- complete(imp_data, action = 1)
+str(complete_data)
+
+# 保存complete_data
+# save(complete_data, file = "complete_data.rdata")
+# 
+# 导入数据
+# load("complete_data.rdata")
+```
+
+## Data analysis
+
+```{r Comparison between two groups}
+coronary <- complete_data
+
+vars <- c("coronary_malperfusion", "ostial_l_involved", "ostial_r_involved", 
+"cad", "ostial_repair", "ostial_trans_cabg", "ostial_return_cabg", 
+"only_mech", "ostial_re_repair", "ostial_repair_die", "cabg", 
+"cabg_cad", "cabg_ostial", "cabg_return_cabg", "cabg_re_cabg_cad", 
+"surgical_mi", "inhospital_death", "stroke", "ecmo", "iabp", "death_within_30days",
+"marfan", "hypertension", "diabetes_insulin", "oral_anticoagulant", 
+"sinus_reconstruct", "avp", "avr", "david", "bentall", "sun", 
+"grafts", "rca", "lima",
+"branches_procedure", "gender", "age", "height", "weight", 
+"bmi", "pericardial_effusion", "bav", "ar", "preLVEF", "re_cpb", 
+"opreative_time", "cpb_time", "clamp_time", "arrest_time", "rbc_use", 
+"plasma_use", "plt_use", "autologous_fusion", "blood_loss", "preSCr", 
+"preCCr", "post_first_scr", "post_48_scr", "peak_scr", "preBUN", 
+"post_first_bun", "post_48h_bun", "peak_bun", "preTBIL", "postTBIL", 
+"preALT", "postALT", "preAST", "postAST", "pre_tni", "post_hs_tni", 
+"preINR", "re_exploration", "crrt", "pneumonia", "sepsis", "tracheostomy", 
+"ventilation_time", "ICUstay", "hosp_stay", "mace", "cardiorenal_events", 
+"ostial_l", "ostial_r", "ostial_involved", "left_neri", "right_neri"
+)
+
+# 简单TableOne
+tableOne <- CreateTableOne(vars = vars,strata = c("cabg"),data = coronary)
+tableOne
+
+# # 基于IPTW的TableOne
+# 
+library(tableone) # 制作基线表
+library(survey)   # 提取加权结果
+library(reshape2) # 画SMD
+library(autoReg)  # 自动回归分析
+# 
+# # 建模并计算PS
+# psModel = glm(ostial_repair ~ age+gender+bav+ar+
+#                 preSCr+preBUN+preTBIL+preINR+preALT+preAST,
+#               family = binomial(link="logit"),
+#               data   = coronary
+#           ) 
+# #PS
+# coronary$ps=predict(psModel,type="response")
+# 
+# # 逆处理概率加权
+# 
+# # 逆概率，计算ostial repair组和CABG组的逆概率
+# # 根据1/PS和1/1-PS
+# coronary$wt1=1/coronary$ps
+# coronary$wt0=1/(1-coronary$ps) 
+# # 根据公式计算所有患者的权重
+# # 假如患者为治疗组（Yes）用公式1加权，否则用公式2加权
+# coronary$w <- ifelse(coronary$ostial_repair == 1, coronary$wt1, coronary$wt0)
+# 
+# # 逆概率加权(ITPW)后的数据做Table 1
+# # 提取IPTW后的数据
+# dataIPTW <- svydesign(ids=~1,data=coronary, weights= ~w)
+# # 再次构建Table-1
+# tab_IPTW=svyCreateTableOne(vars=vars, strata="ostial_repair",data=dataIPTW,test=T) 
+# # 标准化差结果
+# print(tab_IPTW,showAllLevels=TRUE,smd=TRUE)
+# # 查看SMD>10%的混杂因素
+# addmargins(table(ExtractSmd(tab_IPTW) > 0.1))
+# 
+# # 标准化平均差SMD可视化，查看匹配水平
+# 
+# # 提取作图数据
+# dataPlot <- data.frame(variable  = rownames(ExtractSmd(tableOne)),
+#                        Unmatched = as.numeric(ExtractSmd(tableOne)),
+#                        IPTW      = as.numeric(ExtractSmd(tab_IPTW))
+#                        )
+# dataPlot <- dataPlot %>% 
+#   filter(
+#     variable %in% c("age", "gender", "marfan", "cad", "diabetes_insulin",
+#                     "hypertension", "oral_anticoagulant",
+#                     "left_neri", "right_neri", "coronary_malperfusion",
+#                     "bav",  "ar", "preLVEF", 
+#                     "preSCr", "preTBIL", "preINR", "pre_tni"#, "preALT", "preAST"
+#                     )
+#   )
+# #指定将要出现在图中的变量
+# dataPlotMelt <- 
+#   melt(
+#     data          = dataPlot,
+#     id.vars       = c("variable"),
+#     variable.name = "Method",
+#     value.name    = "SMD"
+#   )
+# 
+# varNames <- as.character(dataPlot$variable)[order(dataPlot$Unmatched)]
+# #按名称排列SMD
+# varNames <- c("age", "gender", "hypertension", "diabetes_insulin",
+#               "oral_anticoagulant", "cad", "marfan",
+#               "ar", "bav", "preLVEF",
+#               "coronary_malperfusion", "left_neri", "right_neri",
+#               "pre_tni", "preTBIL", "preSCr", "preINR")
+# #
+# dataPlotMelt$variable <- factor(dataPlotMelt$variable, levels = varNames)
+# #画图
+# dataPlotMelt %>% 
+#   ggplot(
+#     mapping = aes(
+#       x     = variable,
+#       y     = SMD,
+#       group = Method,
+#       color = Method,
+#       shape = Method
+#     )
+#   ) +
+#   # geom_line() +
+#   geom_point(
+#     size = 4
+#   ) +
+#   geom_hline(
+#     yintercept = 0.2, 
+#     color      = "red",
+#     lty        = 2,
+#     size       = 0.1
+#   ) +
+#   coord_flip() +
+#   theme_bw(base_size = 18)
+# 
+# p1 = dataPlotMelt %>% 
+#        ggplot(
+#          mapping = aes(
+#            x       = variable,
+#            y       = SMD,
+#            group   = Method,
+#            color   = Method,
+#            shape   = Method
+#          )
+#        ) +
+#   #geom_line() +
+#   geom_point(size=4) +
+#   geom_hline(yintercept = 0.2, 
+#              color      = "red",
+#              lty        = 2,
+#              size       = 0.1
+#   ) +
+#   coord_flip() +
+#   theme_bw(base_size = 18)
+# rrtable::plot2pptx(print(p1))
+# 
+# # 两个Table 1合并输出
+# 
+# # 提取两个结果
+# table1<- cbind(print(tableOne,printToggle = F, showAllLevels = T,),
+#                print(tab_IPTW,printToggle = F, showAllLevels = T,)
+#          )
+# # 插入一行分组
+# table1<- rbind(Group=rep(c("Level","CABG","ostial repair","P","test"),2),table1)
+# # 更改列名
+# colnames(table1) <- c("Level","Unmatched",NA,NA,NA,"Level","IPTW",NA,NA,NA)
+# # 打印和导出Excel
+# print(table1, quote = FALSE)
+# write.csv(table1, file = "table 1.csv")
+table1<- print(tableOne,printToggle = F, showAllLevels = T,)
+# 打印和导出Excel
+print(table1, quote = FALSE)
+write.csv(table1, file = "table 1.csv")
+```
+
+```{r logistics regression}
+libraries("reportReg", "survey", "autoReg")
+
+# 1.回归分析operative mortality (death_within_30days)的影响因素，数据为coronary,可知搭桥是相关因素
+univariate_model = glm(mace ~ cabg, data = coronary, family = binomial)  
+reportReg(univariate_model)
+
+univariate_model = glm(death_within_30days ~ cabg, data = coronary, family = binomial)
+reportReg(univariate_model)
+
+multivariate_model = glm(mace ~ age+gender+hypertension+diabetes_insulin+cabg, data = coronary, family = binomial)
+
+reportReg(multivariate_model)
+model_raw_mace_1 <- autoReg(multivariate_model,uni=TRUE,multi=FALSE,threshold=0.05)                # 只显示单因素
+model_raw_mace_1
+model_raw_mace_2 <- autoReg(multivariate_model,uni=FALSE,milti=TRUE,threshold=0.05)                # 只显示多因素
+model_raw_mace_2
+
+multivariate_model = glm(death_within_30days ~ age+gender+hypertension+cabg, data = coronary, family = binomial)
+
+reportReg(multivariate_model)
+model_raw_mace_1 <- autoReg(multivariate_model,uni=TRUE,multi=FALSE,threshold=0.05)                # 只显示单因素
+model_raw_mace_1
+model_raw_mace_2 <- autoReg(multivariate_model,uni=FALSE,milti=TRUE,threshold=0.05)                # 只显示多因素
+model_raw_mace_2
+```
+
+```{r survival analysis - mortality}
+raw_data <- read_excel("table.xlsx", col_types = c("skip", 
+     "skip", "skip", "numeric", "text", "text", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", 
+     "skip",    #电话
+     "skip",    #电话2
+     "numeric", 
+     "date",    #随访时间
+     "numeric", # 30天死亡
+     "text",    #出院死亡
+     "date",    #死亡时间
+     "text",    #死因
+     "skip",    #中风日期
+     "text",    #终身透析
+     "text",    #出血日期
+     "text", 
+     "text",    #桥堵pci
+     "text", 
+     "text",    #未处理冠脉pci
+     "text",    #未处理冠脉cabg
+     "skip",    #末次CT
+     "skip", 
+     "numeric", #住院再干预
+     "text", 
+     "text", 
+     "text", 
+     "numeric", "numeric", "text", "text", 
+     "text", "numeric", "numeric", "numeric",    # diabetes_insulin
+     "skip", "numeric", "date", "date", "skip",  # surgeon
+     "numeric", "numeric", "numeric", "numeric", # david 
+     "numeric", "numeric", "text",               # graft_of_cabg
+     "numeric", "numeric", "numeric", "text",    # branches_procedure
+     "numeric", "numeric", "numeric", "numeric", # weight 
+     "numeric", "numeric", "numeric", "numeric", # ai(0-3)
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "skip", 
+     "skip", "skip", "skip", "skip", "numeric", 
+     "text", "text", "text", "numeric", "numeric", 
+     "skip", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "numeric", "skip", "skip", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "text", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip"))
+
+raw_data <- raw_data %>% filter(hosp_stay > 0)   # 提取完整的行
+str(raw_data)
+names(raw_data)
+
+raw_data <- dplyr::rename(raw_data, ostial_l_involved    =             左冠受累)
+raw_data <- dplyr::rename(raw_data, ostial_r_involved    =             右冠受累)
+raw_data <- dplyr::rename(raw_data, cad                  =               冠心病)
+raw_data <- dplyr::rename(raw_data, ostial_repair        =             冠脉成形)
+raw_data <- dplyr::rename(raw_data, ostial_trans_cabg    =           成形转cabg)
+raw_data <- dplyr::rename(raw_data, ostial_return_cabg   =             返室cabg)
+raw_data <- dplyr::rename(raw_data, only_mech            = `ICU,需搭桥但只辅助`)
+raw_data <- dplyr::rename(raw_data, ostial_re_repair     =   `成形后冠脉口修补`)
+raw_data <- dplyr::rename(raw_data, ostial_repair_die    =    `需搭,无辅助即死`)
+raw_data <- dplyr::rename(raw_data, cabg_cad             =         `冠心病搭桥`)
+raw_data <- dplyr::rename(raw_data, cabg_ostial          =       `冠脉受累搭桥`)
+raw_data <- dplyr::rename(raw_data, cabg_return_cabg     =       `返室处理桥路`)
+raw_data <- dplyr::rename(raw_data, cabg_re_cabg_cad     =   `CAD未搭,术中补搭`)
+raw_data <- dplyr::rename(raw_data, surgical_mi          =         `冠脉相关MI`)
+raw_data <- dplyr::rename(raw_data, inhospital_death     =           `院内死亡`)
+
+raw_data <- dplyr::rename(raw_data, follow_up_day        =           `随访时间`)
+raw_data <- dplyr::rename(raw_data, operative_mortality  =           `30天死亡`)
+raw_data <- dplyr::rename(raw_data, successful_follow    =           `成功随访`)
+raw_data <- dplyr::rename(raw_data, midterm_mortality    =           `出院死亡`)
+raw_data <- dplyr::rename(raw_data, coronary_psa         =     `冠脉假性动脉瘤`)
+raw_data <- dplyr::rename(raw_data, coronary_occlusion   =            `桥堵pci`)
+
+raw_data <- dplyr::rename(raw_data, surgical_day         =           `手术日期`)
+
+# 计算全因死亡率
+raw_data$midterm_mortality <- as.numeric(raw_data$midterm_mortality)
+raw_data$all_cause_mortality <- raw_data$operative_mortality + raw_data$midterm_mortality
+raw_data$all_cause_mortality <- ifelse(raw_data$all_cause_mortality == 0, 0, 1)
+
+# 计算随访时间
+raw_data$day   <- raw_data$follow_up_day - raw_data$surgical_day
+raw_data$week  <- raw_data$day/7
+raw_data$month <- raw_data$day/30
+
+# 全因死亡率
+data1 <- raw_data
+data1 <- data1 %>% filter(successful_follow == 1)
+
+# 随访率
+796/835
+
+# 随访时间
+mean(data1$month)
+IQR(data1$month)
+
+fit1 <- survfit(Surv(month,all_cause_mortality) ~ cabg, data = data1) # 进行K-M分析
+print(fit1)
+summary(fit1)
+plot(fit1,main="Kaplan-Meierv curves after surgery",xlab="followperiod1", ylab="Overall Survival")
+
+ggsurvplot(fit1,data=data1,pval = TRUE, pval.method = TRUE,surv.median.line = "hv",
+           palette = "ucscgb",risk.table = TRUE,ylab="Cumulative survival (percentage)",xlab="Time (months)",
+           censor.shape = 124,censor.size = 2,conf.int = TRUE,
+           legend=c(0.90,0.30),legend.title=",",legend.labs=c("CABG","non-CABG"),
+           break.x.by=5,xlim=c(0,50),ylim=c(0,1))
+ggsurvplot(fit1,
+       pval = TRUE, conf.int = TRUE,
+       risk.table = TRUE, # Add risk table
+       risk.table.col = "strata", # Change risk table color by groups
+       linetype = "strata", # Change line type by groups
+       surv.median.line = "hv", # Specify median survival
+       ggtheme = theme_bw(), # Change ggplot2 theme
+       palette = c("#2E9FDF","#E7B800"),
+       legend.labs=c("non-CABG","CABG"),
+       break.x.by=5,xlim=c(0,50),ylim=c(0,1),
+       ylab="Cumulative survival (percentage)",xlab="Time (months)"
+       )
+
+# 计算风险比HR
+cox_model1 <- coxph(Surv(month,all_cause_mortality) ~ cabg, data = data1)
+
+cox_model2 <- coxph(Surv(month,all_cause_mortality) ~ age+gender+hypertension+cabg, data = data1)
+
+# 打印结果
+summary(cox_model1)
+
+summary(cox_model2)
+
+# 计算三年生存率
+summary(fit1, times = 36)
+surv_summary <- summary(fit1, times = 36)
+three_year_survival_rate <- surv_summary$surv
+print(paste("The 3-year survival rate is", round(three_year_survival_rate * 100, 2), "%"))
+
+# 中期生存率
+data2 <- data1 %>% filter(operative_mortality == 0) 
+fit2 <- survfit(Surv(month,midterm_mortality) ~ cabg, data = data2) # 进行K-M分析
+print(fit2)
+summary(fit2)
+plot(fit2,main="Kaplan-Meierv curves after surgery",xlab="followperiod1", ylab="Overall Survival")
+
+ggsurvplot(fit2,data=data2,pval = TRUE, pval.method = TRUE,surv.median.line = "hv",
+           palette = "ucscgb",risk.table = TRUE,ylab="Cumulative survival (percentage)",xlab="Time (months)",
+           censor.shape = 124,censor.size = 2,conf.int = TRUE,
+           legend=c(0.90,0.30),legend.title=",",legend.labs=c("p-CABG","u-CABG"),
+           break.x.by=5,xlim=c(0,50),ylim=c(0,1))
+ggsurvplot(fit2,
+       pval = TRUE, conf.int = TRUE,
+       risk.table = TRUE, # Add risk table
+       risk.table.col = "strata", # Change risk table color by groups
+       linetype = "strata", # Change line type by groups
+       surv.median.line = "hv", # Specify median survival
+       ggtheme = theme_bw(), # Change ggplot2 theme
+       palette = c("#2E9FDF","#E7B800"),
+       legend.labs=c("non-CABG","CABG"),
+       break.x.by=5,xlim=c(0,50),ylim=c(0,1),
+       ylab="Cumulative survival (percentage)",xlab="Time (months)"
+       )
+
+# 计算风险比HR
+cox_model3 <- coxph(Surv(month,all_cause_mortality) ~ cabg, data = data2) 
+
+cox_model4 <- coxph(Surv(month,all_cause_mortality) ~ age+gender+hypertension+cabg, data = data2)
+
+# 打印结果
+summary(cox_model3)
+
+summary(cox_model4)
+
+# 计算一年生存率
+summary(fit2, times = 12)
+surv_summary <- summary(fit2, times = 12)
+one_year_survival_rate <- surv_summary$surv
+print(paste("The 1-year survival rate is", round(one_year_survival_rate * 100, 2), "%"))
+
+# 计算三年生存率
+summary(fit2, times = 36)
+surv_summary <- summary(fit2, times = 36)
+three_year_survival_rate <- surv_summary$surv
+print(paste("The 3-year survival rate is", round(three_year_survival_rate * 100, 2), "%"))
+```
+
+```{r survival analysis - coronary patency}
+# 中期通畅率
+data2$coronary_occlusion <- ifelse(data2$coronary_occlusion == 0, 0, 1)
+data3 <- data2 %>% filter(cabg == 1)
+data3 <- data3 %>% filter(coronary_occlusion %in% c(0,1))
+
+# 随访率
+185/232
+
+fit3 <- survfit(Surv(month,coronary_occlusion) ~ 1, data = data3)        # 进行K-M分析
+print(fit3)
+summary(fit3)
+plot(fit3,main="Kaplan-Meierv curves for grafts patency",xlab="time(weeks)", ylab="Overall Survival")
+
+ggsurvplot(fit3,
+       pval = TRUE, conf.int = TRUE,
+       risk.table = TRUE, # Add risk table
+       risk.table.col = "strata", # Change risk table color by groups
+       linetype = "strata", # Change line type by groups
+       surv.median.line = "hv", # Specify median survival
+       ggtheme = theme_bw(), # Change ggplot2 theme
+       palette = c("#2E9FDF","#E7B800"),
+       break.x.by=5,xlim=c(0,50),ylim=c(0,1),
+       ylab="Proportion of CABG patients without grafts occlusion (percentage)",xlab="Time (months)"
+       )
+# 计算三年通畅率
+summary(fit3, times = 48)
+surv_summary <- summary(fit3, times = 48)
+three_year_survival_rate <- surv_summary$surv
+print(paste("The 3-year grafts occlusion rate is", round(three_year_survival_rate * 100, 2), "%"))
+```
+
+```{r count Ner B and Neri C, and coronary malperfusion}
+table(coronary$ostial_l_involved)
+
+table(coronary$ostial_r_involved)
+
+coronary_not_involved <- coronary %>% 
+  filter((coronary$ostial_l_involved == 0 | coronary$ostial_l_involved == "1A") & (coronary$ostial_r_involved == 0 | coronary$ostial_r_involved == "1A"))
+```
+
+new_data
+
+```{r stepwise regression for rescue CABG}
+new_data <- read_excel("table_for_stepwise.xlsx", col_types = c("skip", 
+     "skip", "skip", "numeric", "text", 
+     "text",    #右冠受累
+     "numeric", "numeric", "numeric", 
+     "numeric", #返室cabg 
+     "numeric", "numeric", "numeric", 
+     "numeric", #cabg 
+     "numeric", #in_ops
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", 
+     "skip",    #电话
+     "skip",    #电话2
+     "numeric", 
+     "skip",    #随访时间
+     "numeric", # 30天死亡
+     "text",    #出院死亡
+     "skip",    #死亡时间
+     "text",    #死因
+     "skip",    #中风日期
+     "text",    #终身透析
+     "text",    #出血日期
+     "text", 
+     "text",    #桥堵pci
+     "text", 
+     "text",    #未处理冠脉pci
+     "text",    #未处理冠脉cabg
+     "skip",    #末次CT
+     "skip", 
+     "numeric", #住院再干预
+     "text", 
+     "text", 
+     "text", 
+     "numeric", "numeric", "text", "text", 
+     "text", "numeric", "numeric", "numeric",    # diabetes_insulin
+     "skip", "numeric", "date", "date", "skip",  # surgeon
+     "numeric", "numeric", "numeric", "numeric", # david 
+     "numeric", "numeric", "text", "numeric",    # grafts
+    "numeric", "numeric", "text",                # branches_procedure
+     "numeric", "numeric", "numeric", "numeric", # weight 
+     "numeric", "numeric", "numeric", "numeric", # ai(0-3)
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "skip", 
+     "skip", "skip", "skip", "skip", "numeric", 
+     "text", "text", "text", "numeric", "numeric", 
+     "skip", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "numeric", "skip", "skip", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "numeric", "numeric", 
+     "numeric", "numeric", "text", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip", "skip", "skip", 
+     "skip", "skip", "skip"))
+
+new_data <- new_data %>% filter(hosp_stay > 0)   # 提取完整的行
+
+new_data <- dplyr::rename(new_data, ostial_l_involved    =             左冠受累)
+new_data <- dplyr::rename(new_data, ostial_r_involved    =             右冠受累)
+new_data <- dplyr::rename(new_data, cad                  =               冠心病)
+new_data <- dplyr::rename(new_data, ostial_repair        =             冠脉成形)
+new_data <- dplyr::rename(new_data, ostial_trans_cabg    =           成形转cabg)
+new_data <- dplyr::rename(new_data, ostial_return_cabg   =             返室cabg)
+new_data <- dplyr::rename(new_data, only_mech            = `ICU,需搭桥但只辅助`)
+new_data <- dplyr::rename(new_data, ostial_re_repair     =   `成形后冠脉口修补`)
+new_data <- dplyr::rename(new_data, ostial_repair_die    =    `需搭,无辅助即死`)
+
+new_data <- dplyr::rename(new_data, cabg_cad             =         `冠心病搭桥`)
+new_data <- dplyr::rename(new_data, cabg_ostial          =       `冠脉受累搭桥`)
+new_data <- dplyr::rename(new_data, cabg_return_cabg     =       `返室处理桥路`)
+new_data <- dplyr::rename(new_data, cabg_re_cabg_cad     =   `CAD未搭,术中补搭`)
+new_data <- dplyr::rename(new_data, surgical_mi          =         `冠脉相关MI`)
+
+# 随访变量暂时未改名
+
+new_data <- dplyr::rename(new_data, inhospital_death     =           `院内死亡`)
+new_data <- dplyr::rename(new_data, death_within_30days  =           `30天死亡`)
+# 本研究中30天死亡跟operative mortality等同
+new_data <- dplyr::rename(new_data, marfan               =   `遗传性主动脉疾病`)
+new_data <- dplyr::rename(new_data, oral_anticoagulant   =         `口服抗凝药`)
+new_data <- dplyr::rename(new_data, pericardial_effusion =    `中量(+)心包填塞`)
+new_data <- dplyr::rename(new_data, ar                   =            `ai(0-3)`)
+new_data <- dplyr::rename(new_data, re_cpb               =           `再次转流`)
+new_data <- dplyr::rename(new_data, rbc_use              =    `手术用红细胞(U)`)
+new_data <- dplyr::rename(new_data, plasma_use           =     `手术用血浆(ml)`)
+new_data <- dplyr::rename(new_data, plt_use              =       `手术用PLT(U)`)
+new_data <- dplyr::rename(new_data, autologous_fusion    =     `术中自体血回输`)
+new_data <- dplyr::rename(new_data, blood_loss           =     `术中失血量(ml)`)
+new_data <- dplyr::rename(new_data, pre_tni              =           `术前肌钙`)
+new_data <- dplyr::rename(new_data, post_hs_tni          =       `术后高敏肌钙`)
+new_data <- dplyr::rename(new_data, re_exploration       =       `二次开胸止血`)
+new_data <- dplyr::rename(new_data, tracheostomy         =       `术后气管切开`)
+
+vars1 <- c("coronary_malperfusion", "ostial_l_involved", "ostial_r_involved", 
+"cad", "ostial_repair", "ostial_trans_cabg", "ostial_return_cabg", 
+"only_mech", "ostial_re_repair", "ostial_repair_die", "cabg", "in_ops", 
+"cabg_cad", "cabg_ostial", "cabg_return_cabg", "cabg_re_cabg_cad", 
+"surgical_mi", "inhospital_death", "stroke", "ecmo", "iabp", "death_within_30days",
+"marfan", "hypertension", "diabetes_insulin", "oral_anticoagulant", 
+"sinus_reconstruct", "avp", "avr", "david", "bentall", "sun", 
+"graft_of_cabg", "grafts", "rca", "lima", 
+"branches_procedure", "gender", "age", "height", "weight", 
+"bmi", "pericardial_effusion", "bav", "ar", "preLVEF", "re_cpb", 
+"opreative_time", "cpb_time", "clamp_time", "arrest_time", "rbc_use", 
+"plasma_use", "plt_use", "autologous_fusion", "blood_loss", "preSCr", 
+"preCCr", "post_first_scr", "post_48_scr", "peak_scr", "preBUN", 
+"post_first_bun", "post_48h_bun", "peak_bun", "preTBIL", "postTBIL", 
+"preALT", "postALT", "preAST", "postAST", "pre_tni", "post_hs_tni", 
+"preINR", "re_exploration", "crrt", "pneumonia", "sepsis", "tracheostomy", 
+"ventilation_time", "ICUstay", "hosp_stay", "mace", "cardiorenal_events")
+
+varsToFactor1 <- c("coronary_malperfusion", "ostial_l_involved", 
+"ostial_r_involved", 
+"cad", "ostial_repair", "ostial_trans_cabg", "ostial_return_cabg", 
+"only_mech", "ostial_re_repair", "ostial_repair_die", "cabg", "in_ops", 
+"cabg_cad", "cabg_ostial", "cabg_return_cabg", "cabg_re_cabg_cad", 
+"surgical_mi", "inhospital_death", "stroke", "ecmo", "iabp", "death_within_30days",
+"marfan", "hypertension", "diabetes_insulin", "oral_anticoagulant", 
+"sinus_reconstruct", "avp", "avr", "david", "bentall", "sun", 
+"grafts", "rca", "lima", "branches_procedure", "gender", "pericardial_effusion", 
+"bav", "ar", "re_cpb", "re_exploration", "crrt", "pneumonia", "sepsis", 
+"tracheostomy", "mace", "cardiorenal_events")
+new_data[varsToFactor1] <- lapply(new_data[varsToFactor1], factor)
+
+# 1.回归分析operative mortality (death_within_30days)的影响因素，数据为coronary细分
+model1 = glm(mace ~ in_ops, data = new_data, family = binomial)  
+reportReg(model1)
+
+model1 = glm(death_within_30days ~ in_ops, data = new_data, family = binomial)
+reportReg(model1)
+
+model2 = glm(death_within_30days ~ age+gender+hypertension+in_ops+cabg_cad+cabg_ostial, data = new_data, family = binomial)
+
+reportReg(model2)
+model2_1 <- autoReg(model2,uni=TRUE,multi=FALSE,threshold=0.05)    # 只显示单因素
+model2_1
+model2_2 <- autoReg(model2,uni=FALSE,milti=TRUE,threshold=0.05)    # 只显示多因素
+model2_2
+```
